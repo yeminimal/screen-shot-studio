@@ -1,29 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SnapView } from "@/components/SnapView";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "SnapView — See your site on any screen" },
+      {
+        name: "description",
+        content:
+          "Paste a URL, pick a device, and capture a pixel-perfect screenshot wrapped in a mockup frame.",
+      },
+      { property: "og:title", content: "SnapView — See your site on any screen" },
+      {
+        property: "og:description",
+        content:
+          "Paste a URL, pick a device, and capture a pixel-perfect screenshot wrapped in a mockup frame.",
+      },
     ],
   }),
-  component: Index,
+  component: SnapView,
 });
-
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
