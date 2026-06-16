@@ -92,6 +92,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "SnapView — See your site on any screen" },
+      { name: "description", content: "Capture website screenshots across various device screen sizes with customizable mockup frames." },
+      { property: "og:description", content: "Capture website screenshots across various device screen sizes with customizable mockup frames." },
+      { name: "twitter:description", content: "Capture website screenshots across various device screen sizes with customizable mockup frames." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/784f4983-6a30-4fd0-b6bb-42f776bcc08a/id-preview-752a73b3--dee3e71b-1ec0-489f-8945-1174217fecae.lovable.app-1781637162120.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/784f4983-6a30-4fd0-b6bb-42f776bcc08a/id-preview-752a73b3--dee3e71b-1ec0-489f-8945-1174217fecae.lovable.app-1781637162120.png" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
