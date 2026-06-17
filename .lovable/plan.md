@@ -1,42 +1,68 @@
-# Deploy the SnapView backend to Railway
+# Deploy SnapView frontend to Vercel
 
-The SnapView frontend in this project is ready — it just needs a Puppeteer service to call. This plan generates a complete, deploy-ready backend repository (kept *outside* the frontend project) and walks through the Railway setup.
+Keep the Puppeteer screenshot service on Railway. Move only the TanStack Start frontend to Vercel.
 
-## What you'll get
+## Why this needs setup
 
-A new folder `snapview-backend/` at the project root containing a standalone Node project you can push to its own GitHub repo and deploy to Railway. It will NOT be wired into the Lovable frontend build — it's just stored here for you to copy out.
+TanStack Start is a full-stack framework with SSR. The current `vite.config.ts` builds with Nitro targeting **Cloudflare Workers** (via `@lovable.dev/vite-tanstack-config`). Vercel needs a different Nitro preset (`vercel`) so the build emits Vercel-compatible serverless/edge functions instead of a Worker bundle.
 
-### Files created
+## Steps
 
-- `snapview-backend/package.json` — Express + Puppeteer, `start` script
-- `snapview-backend/server.js` — Express app with:
-  - `GET /api/health` → `{ ok: true }` for Railway healthchecks
-  - `POST /api/screenshot` → accepts `{ url, device: { width, height, deviceScaleFactor, userAgent } }`, launches Puppeteer with `--no-sandbox`, sets viewport + UA, navigates with timeout, returns `{ image, width, height }` base64 PNG
-  - CORS allowlist via `ALLOWED_ORIGINS` env (comma-separated)
-  - Basic input validation + timeout/error mapping (408/504/4xx)
-  - Single shared browser instance, re-launched on disconnect
-- `snapview-backend/Dockerfile` — `node:20-slim` base + Chromium system deps so Puppeteer's bundled Chrome runs reliably on Railway
-- `snapview-backend/.dockerignore`
-- `snapview-backend/railway.json` — sets builder to Dockerfile, healthcheck path `/api/health`, restart policy
-- `snapview-backend/README.md` — step-by-step Railway deploy + how to wire `VITE_API_URL` back into Lovable
+### 1. Push the repo to GitHub
+Use the GitHub button in Lovable (top right → GitHub → Connect / Create Repository). Vercel deploys from a Git repo.
 
-## Railway deploy steps (in the README)
+### 2. Switch the Nitro build target to Vercel
+Edit `vite.config.ts` to override the Nitro preset:
 
-1. Push `snapview-backend/` to its own GitHub repo.
-2. Railway → New Project → Deploy from GitHub repo → pick the repo.
-3. Railway auto-detects the Dockerfile and builds.
-4. Set env vars:
-   - `ALLOWED_ORIGINS=https://snap-view-anywhere.lovable.app,https://id-preview--dee3e71b-1ec0-489f-8945-1174217fecae.lovable.app`
-   - `PORT` is injected by Railway automatically; server binds to `process.env.PORT`.
-5. Settings → Networking → **Generate Domain** → copy `https://<service>.up.railway.app`.
-6. In Lovable: Project Settings → Environment Variables → set `VITE_API_URL` to that URL (no trailing slash). Republish.
+```ts
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-## Frontend changes
+export default defineConfig({
+  tanstackStart: {
+    server: { entry: "server" },
+  },
+  nitro: {
+    preset: "vercel",
+  },
+});
+```
 
-None. The existing `src/lib/api.ts` already POSTs to `${VITE_API_URL}/api/screenshot` with the right payload shape.
+This swaps the default `cloudflare` preset for `vercel` so the build outputs `.vercel/output/` in the format Vercel expects. No other code changes are needed — server functions and routes work the same.
 
-## Out of scope (Phase 2)
+Caveat: this change will also affect Lovable's own Publish (which expects the Cloudflare preset). If you want to keep publishing from Lovable AND deploy to Vercel from the same repo, we'd gate the preset on an env var (e.g. `process.env.VERCEL ? "vercel" : undefined`) so Lovable keeps using the default and Vercel uses its own.
 
-- Auth / rate limiting / abuse protection on the backend
-- Full-page screenshots, ad blocking, cookie banners auto-dismiss
-- Caching / persistence of captures
+### 3. Create the Vercel project
+1. vercel.com → **Add New → Project** → import the GitHub repo.
+2. Framework preset: **Other** (Vercel will detect Vite; leave build defaults).
+3. Build command: `npm run build` (or `bun run build`).
+4. Output: leave default — Nitro's Vercel preset writes to `.vercel/output/` which Vercel picks up automatically.
+
+### 4. Set environment variables in Vercel
+Project Settings → Environment Variables:
+- `VITE_API_URL` = `https://snapview-api-production.up.railway.app`
+
+Apply to Production, Preview, and Development.
+
+### 5. Deploy and grab the URL
+Click **Deploy**. After it goes live, copy the Vercel URL (e.g. `https://snapview.vercel.app` and any preview URLs).
+
+### 6. Update Railway CORS allowlist
+In Railway → snapview-api service → Variables, add the Vercel URL(s) to `ALLOWED_ORIGINS`:
+
+```
+https://snap-view-anywhere.lovable.app,https://id-preview--dee3e71b-1ec0-489f-8945-1174217fecae.lovable.app,https://snapview.vercel.app
+```
+
+Save — Railway redeploys automatically. Without this, screenshot requests from the Vercel frontend will fail with CORS errors.
+
+### 7. (Optional) Custom domain
+Vercel → Project → Domains → add your domain and follow the DNS instructions. Then add that domain to Railway's `ALLOWED_ORIGINS` too.
+
+## What stays the same
+
+- All app code, routes, components, and the Railway backend.
+- Lovable Cloud is not used here, so nothing to migrate.
+
+## Open question
+
+Do you want to **keep publishing from Lovable as well** (dual deploy), or **move publishing entirely to Vercel**? That decides whether step 2 hardcodes `preset: "vercel"` or gates it behind the `VERCEL` env var.
