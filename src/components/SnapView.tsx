@@ -52,8 +52,11 @@ export function SnapView() {
     setResult(null);
     try {
       const res = await captureScreenshot(url.trim(), device);
+      const src = res.image.startsWith("data:")
+        ? res.image
+        : `data:image/png;base64,${res.image}`;
       setResult({
-        src: `data:image/png;base64,${res.image}`,
+        src,
         width: res.width,
         height: res.height,
         device,
