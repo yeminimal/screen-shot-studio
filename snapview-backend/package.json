@@ -1,0 +1,19 @@
+{
+  "name": "snapview-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Puppeteer-powered screenshot service for SnapView",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "puppeteer": "^23.5.0"
+  }
+}
