@@ -55,7 +55,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // --- Screenshot endpoint ---
 app.post("/api/screenshot", async (req, res) => {
-  const { url, device } = req.body || {};
+  const { url, device, scrollY: rawScrollY } = req.body || {};
 
   // Validation
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
@@ -73,6 +73,8 @@ app.post("/api/screenshot", async (req, res) => {
   const height = Math.min(Math.max(device.height, 200), 2560);
   const deviceScaleFactor = Math.min(Math.max(device.deviceScaleFactor || 1, 1), 3);
   const userAgent = typeof device.userAgent === "string" ? device.userAgent : undefined;
+  const scrollY =
+    typeof rawScrollY === "number" && rawScrollY > 0 ? Math.min(rawScrollY, 50_000) : 0;
 
   let page;
   try {
@@ -82,6 +84,11 @@ app.post("/api/screenshot", async (req, res) => {
     await page.setViewport({ width, height, deviceScaleFactor });
 
     await page.goto(url, { waitUntil: "networkidle2", timeout: 25_000 });
+
+    if (scrollY > 0) {
+      await page.evaluate((y) => window.scrollTo(0, y), scrollY);
+      await new Promise((r) => setTimeout(r, 500));
+    }
 
     const buffer = await page.screenshot({ type: "png", fullPage: false });
     const image = buffer.toString("base64");
