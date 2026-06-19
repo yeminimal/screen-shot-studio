@@ -52,7 +52,7 @@ function ClayFrame({ aspect, overlay, children }: FrameProps) {
       style={{ aspectRatio: aspect }}
     >
       {overlay ? (
-        <div className="absolute inset-0 overflow-auto">{children}</div>
+        <div className="absolute inset-0 overflow-hidden">{children}</div>
       ) : (
         children
       )}
@@ -79,7 +79,7 @@ function DeviceFrame({
         style={{ aspectRatio: aspect }}
       >
         {overlay ? (
-          <div className="absolute inset-0 overflow-auto">{children}</div>
+          <div className="absolute inset-0 overflow-hidden">{children}</div>
         ) : (
           children
         )}
@@ -112,7 +112,7 @@ function BrowserFrame({
       </div>
       <div className="relative w-full bg-black" style={{ aspectRatio: aspect }}>
         {overlay ? (
-          <div className="absolute inset-0 overflow-auto">{children}</div>
+          <div className="absolute inset-0 overflow-hidden">{children}</div>
         ) : (
           children
         )}
@@ -131,7 +131,7 @@ function MacBookFrame({ aspect, overlay, children }: FrameProps) {
           style={{ aspectRatio: aspect }}
         >
           {overlay ? (
-            <div className="absolute inset-0 overflow-auto">{children}</div>
+            <div className="absolute inset-0 overflow-hidden">{children}</div>
           ) : (
             children
           )}
