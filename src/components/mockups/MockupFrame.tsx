@@ -1,5 +1,10 @@
 import type { DeviceCategory } from "@/lib/devices";
 
+// Note: when `overlay` is true, the screen area uses `overflow-hidden` so a
+// transform-scaled iframe sits flush; the iframe handles its own internal
+// scrolling.
+
+
 type Props = {
   style: string;
   category: DeviceCategory;
