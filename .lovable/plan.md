@@ -1,68 +1,65 @@
-# Deploy SnapView frontend to Vercel
+# SnapView V2 — Implementation Plan
 
-Keep the Puppeteer screenshot service on Railway. Move only the TanStack Start frontend to Vercel.
+Three changes per the spec: scrollable live preview inside the mockup, full responsiveness across breakpoints, and downloads that composite the mockup frame onto the screenshot.
 
-## Why this needs setup
+## 1. Scrollable Live Preview (frontend + backend)
 
-TanStack Start is a full-stack framework with SSR. The current `vite.config.ts` builds with Nitro targeting **Cloudflare Workers** (via `@lovable.dev/vite-tanstack-config`). Vercel needs a different Nitro preset (`vercel`) so the build emits Vercel-compatible serverless/edge functions instead of a Worker bundle.
+**Flow:** `idle → previewing → capturing → captured`
 
-## Steps
+- Rename primary CTA to **Load Preview**. On click (with valid URL), switch to `previewing`.
+- In `previewing`, render a scaled `<iframe src={url}>` inside the existing `MockupFrame`:
+  - Container width = `min(viewport - 32, 480)`; `scale = containerWidth / device.width`.
+  - Inner wrapper sized to `device.width × device.height`, `transform: scale(...)`, `transformOrigin: top left`, `overflow: hidden` so the user scrolls *inside* the iframe.
+  - Mockup chrome stays on top via `position: absolute; inset: 0; pointer-events: none` so scrolling isn't blocked.
+  - `sandbox="allow-scripts allow-same-origin allow-forms"`.
+- **Iframe failure fallback:** detect `onerror` / load timeout (~6s) → show "This site doesn't allow previewing in frames. You can still capture it directly." with a **Capture Without Preview** button that bypasses the iframe step and calls the API with `scrollY: 0`.
+- Show **Capture This View** below the preview. Reads `iframeRef.current.contentWindow.scrollY` (same-origin only; cross-origin falls back to 0 with a small notice).
+- Backend (`snapview-backend/server.js`): accept `scrollY` in the POST body, after `page.goto` do `page.evaluate(y => scrollTo(0,y), scrollY)` + 500ms settle, then screenshot as today.
 
-### 1. Push the repo to GitHub
-Use the GitHub button in Lovable (top right → GitHub → Connect / Create Repository). Vercel deploys from a Git repo.
+> ⚠️ Honest caveat: most production sites send `X-Frame-Options: DENY` or a frame-ancestors CSP — the iframe will render blank for them. The fallback above is what users will hit on those sites; this is a limitation of in-browser previewing, not a bug.
 
-### 2. Switch the Nitro build target to Vercel
-Edit `vite.config.ts` to override the Nitro preset:
+## 2. Responsiveness
 
-```ts
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+Apply Tailwind responsive prefixes throughout `SnapView.tsx` and `MockupFrame.tsx`:
 
-export default defineConfig({
-  tanstackStart: {
-    server: { entry: "server" },
-  },
-  nitro: {
-    preset: "vercel",
-  },
-});
-```
+- **Container:** `max-w-[480px] sm:max-w-[640px] lg:max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8`.
+- **URL input:** `h-12 sm:h-[52px] lg:h-14`, font `text-sm sm:text-[15px] lg:text-base`.
+- **Category tabs:** stay 3-up full width; `h-10 sm:h-11`.
+- **Device selector:** mobile horizontal scroll, `sm:grid sm:grid-cols-3 sm:overflow-visible`.
+- **Mockup selector:** 3 cards always; bump padding + thumb size at `sm:` and `lg:`.
+- **CTAs:** full width on mobile (`h-13`), `sm:h-14`, `lg:max-w-[480px] lg:mx-auto`.
+- **Preview container:** `max-w-full sm:max-w-[500px] lg:max-w-[600px]`.
+- **Result actions:** `flex flex-col sm:flex-row gap-3`, each `flex-1 h-12`.
 
-This swaps the default `cloudflare` preset for `vercel` so the build outputs `.vercel/output/` in the format Vercel expects. No other code changes are needed — server functions and routes work the same.
+No design tokens, colors, fonts, or radii change.
 
-Caveat: this change will also affect Lovable's own Publish (which expects the Cloudflare preset). If you want to keep publishing from Lovable AND deploy to Vercel from the same repo, we'd gate the preset on an env var (e.g. `process.env.VERCEL ? "vercel" : undefined`) so Lovable keeps using the default and Vercel uses its own.
+## 3. Download = Screenshot + Mockup Frame (canvas composite)
 
-### 3. Create the Vercel project
-1. vercel.com → **Add New → Project** → import the GitHub repo.
-2. Framework preset: **Other** (Vercel will detect Vite; leave build defaults).
-3. Build command: `npm run build` (or `bun run build`).
-4. Output: leave default — Nitro's Vercel preset writes to `.vercel/output/` which Vercel picks up automatically.
+New file `src/lib/canvasComposite.ts` exporting `getMockupInsets`, `drawMockupFrame`, `drawMockupOverlay`, `roundRect`, `truncateUrl` — implementations per spec, typed.
 
-### 4. Set environment variables in Vercel
-Project Settings → Environment Variables:
-- `VITE_API_URL` = `https://snapview-api-production.up.railway.app`
+Rewrite `handleDownload` in `SnapView.tsx`:
 
-Apply to Production, Preview, and Development.
+1. Create offscreen canvas at `(width + 2·PADDING) × (height + 2·PADDING)` with 2× DPR scale.
+2. Fill background `#0F0F11`.
+3. `drawMockupFrame(ctx, mockupId, w, h, PADDING, url)`.
+4. Load screenshot `<Image>`, draw inside frame with `getMockupInsets` offsets.
+5. `drawMockupOverlay(...)` for notch / dots / URL bar / hinge.
+6. `canvas.toBlob` → anchor download `snapview-{device}-{mockup}-{ts}.png`.
 
-### 5. Deploy and grab the URL
-Click **Deploy**. After it goes live, copy the Vercel URL (e.g. `https://snapview.vercel.app` and any preview URLs).
+The on-screen `MockupFrame` is unchanged; the canvas is a parallel renderer matching its look closely enough to read as "the same image".
 
-### 6. Update Railway CORS allowlist
-In Railway → snapview-api service → Variables, add the Vercel URL(s) to `ALLOWED_ORIGINS`:
+## Files touched
 
-```
-https://snap-view-anywhere.lovable.app,https://id-preview--dee3e71b-1ec0-489f-8945-1174217fecae.lovable.app,https://snapview.vercel.app
-```
+- `src/components/SnapView.tsx` — stage state, iframe stage, fallback, scrollY capture, responsive classes, new download.
+- `src/components/mockups/MockupFrame.tsx` — make chrome overlay-positioned so iframe is scrollable; minor responsive tweaks.
+- `src/lib/api.ts` — accept optional `scrollY` arg, send in body.
+- `src/lib/canvasComposite.ts` — new.
+- `snapview-backend/server.js` — read `scrollY`, scroll page before screenshot. (Needs redeploy on Railway.)
 
-Save — Railway redeploys automatically. Without this, screenshot requests from the Vercel frontend will fail with CORS errors.
+## Out of scope (kept as-is)
 
-### 7. (Optional) Custom domain
-Vercel → Project → Domains → add your domain and follow the DNS instructions. Then add that domain to Railway's `ALLOWED_ORIGINS` too.
-
-## What stays the same
-
-- All app code, routes, components, and the Railway backend.
-- Lovable Cloud is not used here, so nothing to migrate.
+Design tokens, device/mockup configs, `VITE_API_URL` pattern, `/api/health`, error messages.
 
 ## Open question
 
-Do you want to **keep publishing from Lovable as well** (dual deploy), or **move publishing entirely to Vercel**? That decides whether step 2 hardcodes `preset: "vercel"` or gates it behind the `VERCEL` env var.
+Same-origin scroll position only works for sites that allow framing **and** are same-origin (essentially never in production). For cross-origin framed sites I'll pass `scrollY: 0` and show a small hint like "Scroll position capture isn't available for this site — capturing from top." OK to proceed with that, or do you want me to inject a small `postMessage` bridge (only useful for sites you control)?

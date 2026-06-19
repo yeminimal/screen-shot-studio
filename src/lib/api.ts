@@ -19,13 +19,14 @@ export class SnapViewError extends Error {
 export async function captureScreenshot(
   url: string,
   device: DeviceConfig,
+  scrollY: number = 0,
 ): Promise<ScreenshotResponse> {
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api/screenshot`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, device }),
+      body: JSON.stringify({ url, device, scrollY }),
     });
   } catch {
     throw new SnapViewError(
