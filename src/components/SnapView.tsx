@@ -285,7 +285,7 @@ export function SnapView() {
           <button
             onClick={handleLoadPreview}
             disabled={!urlValid}
-            className="h-13 w-full rounded-xl bg-gradient-to-b from-[#8B7DFF] to-[#6A5BE5] py-4 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(124,110,247,0.7)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:h-14 sm:text-base lg:mx-auto lg:max-w-[480px] lg:block"
+            className="h-[52px] w-full rounded-xl bg-gradient-to-b from-[#8B7DFF] to-[#6A5BE5] py-4 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(124,110,247,0.7)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:h-14 sm:text-base lg:mx-auto lg:max-w-[480px] lg:block"
           >
             Load Preview
           </button>
