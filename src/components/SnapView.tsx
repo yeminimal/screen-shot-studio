@@ -1,15 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DEVICES,
-  MOCKUPS,
-  type DeviceCategory,
-  type DeviceConfig,
-} from "@/lib/devices";
+import { ALL_DEVICES, type DeviceConfig } from "@/lib/devices";
 import { captureScreenshot, SnapViewError } from "@/lib/api";
 import { MockupFrame } from "@/components/mockups/MockupFrame";
+import { DeviceDropdown } from "@/components/DeviceDropdown";
 import { compositeAndDownload } from "@/lib/canvasComposite";
-
-const CATEGORIES: DeviceCategory[] = ["mobile", "tablet", "desktop"];
 
 type Stage = "idle" | "previewing" | "capturing" | "captured";
 
@@ -20,9 +14,9 @@ function isValidUrl(value: string) {
 export function SnapView() {
   const [url, setUrl] = useState("");
   const [touched, setTouched] = useState(false);
-  const [category, setCategory] = useState<DeviceCategory>("mobile");
-  const [deviceId, setDeviceId] = useState<string>(DEVICES.mobile[0].id);
-  const [mockupId, setMockupId] = useState<string>(MOCKUPS.mobile[0].id);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceConfig>(
+    ALL_DEVICES[0],
+  );
 
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +25,6 @@ export function SnapView() {
     width: number;
     height: number;
     device: DeviceConfig;
-    mockupId: string;
-    category: DeviceCategory;
     url: string;
   } | null>(null);
 
@@ -40,13 +32,9 @@ export function SnapView() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewBoxRef = useRef<HTMLDivElement | null>(null);
 
-  // Container width is responsive to the preview slot; recompute on resize.
   const [containerWidth, setContainerWidth] = useState(360);
 
-  const device = useMemo(
-    () => DEVICES[category].find((d) => d.id === deviceId) ?? DEVICES[category][0],
-    [category, deviceId],
-  );
+  const device = selectedDevice;
 
   useEffect(() => {
     function update() {
@@ -64,18 +52,16 @@ export function SnapView() {
 
   const scale = containerWidth / device.width;
 
-  function switchCategory(next: DeviceCategory) {
-    setCategory(next);
-    setDeviceId(DEVICES[next][0].id);
-    setMockupId(MOCKUPS[next][0].id);
-    resetPreview();
-  }
-
   function resetPreview() {
     setStage("idle");
     setResult(null);
     setError(null);
     setIframeError(false);
+  }
+
+  function handleSelectDevice(d: DeviceConfig) {
+    setSelectedDevice(d);
+    resetPreview();
   }
 
   function handleLoadPreview() {
@@ -100,8 +86,6 @@ export function SnapView() {
         width: res.width,
         height: res.height,
         device,
-        mockupId,
-        category,
         url: url.trim(),
       });
       setStage("captured");
@@ -120,7 +104,7 @@ export function SnapView() {
     try {
       scrollY = iframeRef.current?.contentWindow?.scrollY ?? 0;
     } catch {
-      scrollY = 0; // cross-origin — best effort
+      scrollY = 0;
     }
     void doCapture(Math.round(scrollY));
   }
@@ -136,10 +120,10 @@ export function SnapView() {
         imageSrc: result.src,
         width: result.width,
         height: result.height,
-        mockupId: result.mockupId,
-        category: result.category,
+        mockupId: result.device.mockup,
+        category: result.device.category,
         url: result.url,
-        filename: `snapview-${result.device.id}-${result.mockupId}-${Date.now()}.png`,
+        filename: `snapview-${result.device.id}-${result.device.mockup}-${Date.now()}.png`,
       });
     } catch {
       setError("Couldn't build the composited image. Try downloading again.");
@@ -190,87 +174,12 @@ export function SnapView() {
           )}
         </section>
 
-        {/* Category tabs */}
-        <section className="mb-5">
-          <div className="inline-flex w-full rounded-xl bg-card p-1 ring-1 ring-white/5">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                onClick={() => switchCategory(c)}
-                className={`h-10 flex-1 rounded-lg px-3 text-[13px] font-medium capitalize transition-colors sm:h-11 sm:text-sm ${
-                  category === c
-                    ? "bg-[#7C6EF7] text-white shadow"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Device variants */}
-        <section className="mb-5">
+        {/* Device dropdown */}
+        <section className="mb-6">
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Device
           </h2>
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
-            {DEVICES[category].map((d) => {
-              const active = d.id === deviceId;
-              return (
-                <button
-                  key={d.id}
-                  onClick={() => {
-                    setDeviceId(d.id);
-                    resetPreview();
-                  }}
-                  className={`min-w-[130px] snap-start rounded-2xl border p-3 text-left transition-all sm:min-w-0 sm:p-4 lg:p-[18px] ${
-                    active
-                      ? "border-[#7C6EF7] bg-[#7C6EF7]/10"
-                      : "border-white/10 bg-card hover:border-white/20"
-                  }`}
-                >
-                  <div className="text-xs font-medium sm:text-[13px] lg:text-sm">
-                    {d.label}
-                  </div>
-                  <div className="mt-1 font-mono text-[11px] text-muted-foreground sm:text-xs">
-                    {d.width}×{d.height}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Mockup styles */}
-        <section className="mb-6">
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Mockup
-          </h2>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            {MOCKUPS[category].map((m) => {
-              const active = m.id === mockupId;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setMockupId(m.id);
-                    resetPreview();
-                  }}
-                  className={`rounded-2xl border p-2.5 transition-all sm:p-3 ${
-                    active
-                      ? "border-[#7C6EF7] bg-[#7C6EF7]/10"
-                      : "border-white/10 bg-card hover:border-white/20"
-                  }`}
-                >
-                  <MockupThumb styleId={m.id} category={category} />
-                  <div className="mt-2 text-center text-[13px] font-medium sm:text-sm">
-                    {m.label}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <DeviceDropdown value={selectedDevice} onChange={handleSelectDevice} />
         </section>
 
         {/* Error */}
@@ -285,13 +194,13 @@ export function SnapView() {
           <button
             onClick={handleLoadPreview}
             disabled={!urlValid}
-            className="h-[52px] w-full rounded-xl bg-gradient-to-b from-[#8B7DFF] to-[#6A5BE5] py-4 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(124,110,247,0.7)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:h-14 sm:text-base lg:mx-auto lg:max-w-[480px] lg:block"
+            className="block h-[52px] w-full rounded-xl bg-gradient-to-b from-[#8B7DFF] to-[#6A5BE5] py-4 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(124,110,247,0.7)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:h-14 sm:text-base lg:mx-auto lg:max-w-[480px]"
           >
             Load Preview
           </button>
         )}
 
-        {/* Preview area (live iframe, capturing, or result) */}
+        {/* Preview area */}
         {stage !== "idle" && (
           <section className="mt-8 sm:mt-10">
             <h2 className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -302,8 +211,8 @@ export function SnapView() {
               <div ref={previewBoxRef} className="w-full">
                 {stage === "previewing" || stage === "capturing" ? (
                   <MockupFrame
-                    style={mockupId}
-                    category={category}
+                    style={device.mockup}
+                    category={device.category}
                     url={url}
                     width={device.width}
                     height={device.height}
@@ -342,8 +251,8 @@ export function SnapView() {
                   </MockupFrame>
                 ) : result ? (
                   <MockupFrame
-                    style={result.mockupId}
-                    category={result.category}
+                    style={result.device.mockup}
+                    category={result.device.category}
                     url={result.url}
                     width={result.width}
                     height={result.height}
@@ -357,7 +266,6 @@ export function SnapView() {
                 ) : null}
               </div>
 
-              {/* Action buttons */}
               {(stage === "previewing" || stage === "capturing") && !iframeError && (
                 <div className="mt-5 lg:mx-auto lg:max-w-[480px]">
                   <button
@@ -395,7 +303,7 @@ export function SnapView() {
         )}
 
         <footer className="mt-16 text-center text-xs text-muted-foreground">
-          Screenshots are captured on your backend and discarded. V2.
+          Screenshots are captured on your backend and discarded. V3.
         </footer>
       </main>
     </div>
@@ -424,62 +332,6 @@ function IframeBlocked({
       >
         {capturing ? "Capturing…" : "Capture Without Preview"}
       </button>
-    </div>
-  );
-}
-
-function MockupThumb({
-  styleId,
-  category,
-}: {
-  styleId: string;
-  category: DeviceCategory;
-}) {
-  const isPortrait = category !== "desktop";
-  const aspect = isPortrait ? "9 / 14" : "16 / 10";
-
-  if (styleId === "clay") {
-    return (
-      <div
-        className="mx-auto w-full rounded-lg bg-gradient-to-br from-white/15 to-white/5 ring-1 ring-white/10"
-        style={{ aspectRatio: aspect }}
-      />
-    );
-  }
-  if (styleId === "browser") {
-    return (
-      <div
-        className="mx-auto w-full overflow-hidden rounded-lg bg-[#0f0f12] ring-1 ring-white/10"
-        style={{ aspectRatio: aspect }}
-      >
-        <div className="flex items-center gap-1 bg-[#1f1f25] px-1.5 py-1">
-          <span className="h-1 w-1 rounded-full bg-[#ff5f57]" />
-          <span className="h-1 w-1 rounded-full bg-[#febc2e]" />
-          <span className="h-1 w-1 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="h-full bg-white/5" />
-      </div>
-    );
-  }
-  if (styleId === "macbook") {
-    return (
-      <div className="mx-auto w-full">
-        <div
-          className="rounded-t-md bg-[#0f0f12] p-0.5 ring-1 ring-white/10"
-          style={{ aspectRatio: "16 / 10" }}
-        >
-          <div className="h-full w-full rounded-sm bg-white/5" />
-        </div>
-        <div className="mx-auto h-1 w-[108%] -translate-x-[3.7%] rounded-b-md bg-white/10" />
-      </div>
-    );
-  }
-  return (
-    <div
-      className="mx-auto w-2/3 rounded-[10px] bg-[#0f0f12] p-1 ring-1 ring-white/10"
-      style={{ aspectRatio: aspect }}
-    >
-      <div className="h-full w-full rounded-md bg-white/5" />
     </div>
   );
 }
